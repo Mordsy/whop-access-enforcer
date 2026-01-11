@@ -1,49 +1,53 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
 /**
  * Supabase client for server-side operations
  * 
- * Uses service role key for full database access in API routes and server components.
- * For client-side operations, create a separate client with the anon key.
+ * Reads credentials from environment variables.
+ * Fails gracefully with clear error messages if env vars are missing.
  */
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
+let _supabase: SupabaseClient<Database> | null = null;
+let _initError: string | null = null;
+
+// Check for missing env vars at module load
 if (!supabaseUrl) {
-  throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL environment variable');
-}
-
-if (!supabaseServiceKey) {
-  throw new Error('Missing SUPABASE_SERVICE_ROLE_KEY environment variable');
+  _initError = 'Missing NEXT_PUBLIC_SUPABASE_URL environment variable';
+} else if (!supabaseAnonKey) {
+  _initError = 'Missing NEXT_PUBLIC_SUPABASE_ANON_KEY environment variable';
+} else {
+  _supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
 }
 
 /**
- * Server-side Supabase client with service role privileges
- * Use this for API routes and server components that need full database access
+ * Get the Supabase client instance
+ * Throws a descriptive error if env vars are missing
  */
-export const supabase = createClient<Database>(supabaseUrl, supabaseServiceKey, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false,
-  },
-});
+export function getSupabase(): SupabaseClient<Database> {
+  if (_initError) {
+    throw new Error(_initError);
+  }
+  if (!_supabase) {
+    throw new Error('Supabase client not initialized');
+  }
+  return _supabase;
+}
 
 /**
- * Create a Supabase client with the anon key for client-side operations
- * This has Row Level Security (RLS) applied
+ * Check if Supabase is properly configured
  */
-export function createAnonClient() {
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  
-  if (!supabaseUrl) {
-    throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL environment variable');
+export function isSupabaseConfigured(): { ok: boolean; error?: string } {
+  if (_initError) {
+    return { ok: false, error: _initError };
   }
-  
-  if (!anonKey) {
-    throw new Error('Missing NEXT_PUBLIC_SUPABASE_ANON_KEY environment variable');
-  }
-  
-  return createClient<Database>(supabaseUrl, anonKey);
+  return { ok: true };
 }
