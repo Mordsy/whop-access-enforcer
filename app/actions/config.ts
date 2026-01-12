@@ -1,7 +1,7 @@
 'use server';
 
 import { getSupabase, isSupabaseConfigured } from '@/lib/supabase/client';
-import type { CompanyConfig, CompanyConfigInsert } from '@/lib/supabase/types';
+import type { CompanyConfig, CompanyConfigInsert, AuditLog } from '@/lib/supabase/types';
 
 export interface ActionResult<T = void> {
   success: boolean;
@@ -112,3 +112,4 @@ export async function saveCompanyConfig(
     };
   }
 }
+

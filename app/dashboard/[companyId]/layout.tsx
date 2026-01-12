@@ -13,31 +13,52 @@ export default async function DashboardLayout({
   const { companyId } = await params;
   const headersList = await headers();
 
-  // Get the user token from headers
-  const userToken = headersList.get('x-whop-user-token');
+// Get the user token from headers
+const userToken = headersList.get("x-whop-user-token");
 
-  if (!userToken) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-zinc-950">
-        <div className="text-center p-8 max-w-md">
-          <div className="text-6xl mb-4">🔒</div>
-          <h1 className="text-2xl font-bold text-white mb-2">
-            Authentication Required
-          </h1>
-          <p className="text-zinc-400">
-            Please access this dashboard through Whop.
-          </p>
-        </div>
+// Dev-only bypass for local testing
+const devBypass =
+  process.env.NODE_ENV === "development" &&
+  process.env.DEV_BYPASS_WHOP_AUTH === "true";
+
+if (!userToken && !devBypass) {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-zinc-950">
+      <div className="text-center p-8 max-w-md">
+        <div className="text-6xl mb-4">🔒</div>
+        <h1 className="text-2xl font-bold text-white mb-2">
+          Authentication Required
+        </h1>
+        <p className="text-zinc-400">
+          Please access this dashboard through Whop.
+        </p>
       </div>
-    );
-  }
+    </div>
+  );
+}
+
+// Use a placeholder token in dev if needed downstream
+const effectiveUserToken = userToken ?? "dev-bypass";
+
 
   // Create a mock request to verify the token
   const mockRequest = new Request('https://placeholder.com', {
-    headers: { 'x-whop-user-token': userToken },
+    headers: { "x-whop-user-token": effectiveUserToken },
   });
 
-  const tokenPayload = await verifyUserToken(mockRequest);
+  let tokenPayload: any = null;
+
+  if (!devBypass) {
+    // Create a mock request to verify the token
+    const mockRequest = new Request("https://placeholder.com", {
+      headers: { "x-whop-user-token": effectiveUserToken },
+    });
+  
+    tokenPayload = await verifyUserToken(mockRequest);
+  } else {
+    // Dev bypass: skip verification
+    tokenPayload = { devBypass: true };
+  }
 
   if (!tokenPayload) {
     return (
@@ -56,7 +77,10 @@ export default async function DashboardLayout({
   }
 
   // Check if user has admin access to this company
-  const isAdmin = await isUserAdminOfCompany(tokenPayload.userId, companyId);
+  const isAdmin = devBypass
+  ? true
+  : await isUserAdminOfCompany(tokenPayload.userId, companyId);
+
 
   if (!isAdmin) {
     return (

@@ -1,5 +1,6 @@
 import { getSupabase, isSupabaseConfigured } from '@/lib/supabase/client';
 import { ConfigForm } from '@/components/dashboard/config-form';
+import { getAuditLogs } from '@/app/actions/config';
 
 interface DashboardPageProps {
   params: Promise<{ companyId: string }>;
@@ -36,21 +37,13 @@ async function getProductRoleMappings(companyId: string) {
   return data || [];
 }
 
-async function getRecentAuditLogs(companyId: string) {
-  const supabase = getSupabase();
-  const { data, error } = await supabase
-    .from('audit_logs')
-    .select('*')
-    .eq('company_id', companyId)
-    .order('created_at', { ascending: false })
-    .limit(10);
-
-  if (error) {
-    console.error('Error fetching audit logs:', error);
-    return [];
-  }
-
-  return data || [];
+/**
+ * Helper to truncate long error messages
+ */
+function truncateError(error: string | null, maxLength: number = 50): string {
+  if (!error) return '—';
+  if (error.length <= maxLength) return error;
+  return error.substring(0, maxLength) + '…';
 }
 
 export default async function DashboardPage({ params }: DashboardPageProps) {
@@ -77,11 +70,13 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
     );
   }
 
-  const [config, roleMappings, auditLogs] = await Promise.all([
+  const [config, roleMappings, auditLogsResult] = await Promise.all([
     getCompanyConfig(companyId),
     getProductRoleMappings(companyId),
-    getRecentAuditLogs(companyId),
+    getAuditLogs(companyId, 50),
   ]);
+
+  const auditLogs = auditLogsResult.success ? auditLogsResult.data ?? [] : [];
 
   return (
     <div className="space-y-8">
@@ -168,7 +163,7 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
         </div>
       </section>
 
-      {/* Recent Audit Logs */}
+      {/* Audit Logs */}
       <section className="bg-zinc-900 rounded-xl border border-zinc-800 p-6">
         <div className="flex items-center gap-3 mb-4">
           <div className="w-10 h-10 rounded-lg bg-rose-500/20 flex items-center justify-center">
@@ -177,66 +172,85 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
             </svg>
           </div>
           <div>
-            <h3 className="text-lg font-semibold text-white">Recent Activity</h3>
-            <p className="text-sm text-zinc-500">Audit log of role revocation actions</p>
+            <h3 className="text-lg font-semibold text-white">Audit Log</h3>
+            <p className="text-sm text-zinc-500">Recent role revocation events (last 50)</p>
           </div>
         </div>
         
         <div className="bg-zinc-800/50 rounded-lg border border-zinc-700/50 overflow-hidden">
           {auditLogs.length > 0 ? (
-            <table className="w-full">
-              <thead className="bg-zinc-800">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">
-                    Event
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">
-                    User
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">
-                    Action
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">
-                    Result
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">
-                    Time
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-700/50">
-                {auditLogs.map((log) => (
-                  <tr key={log.id}>
-                    <td className="px-4 py-3 text-sm text-zinc-300">
-                      {log.event_type}
-                    </td>
-                    <td className="px-4 py-3 text-sm font-mono text-zinc-400">
-                      {log.user_id}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-zinc-300">
-                      {log.action}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                        log.result === 'success' 
-                          ? 'bg-emerald-500/20 text-emerald-400'
-                          : log.result === 'skipped'
-                          ? 'bg-amber-500/20 text-amber-400'
-                          : 'bg-red-500/20 text-red-400'
-                      }`}>
-                        {log.result}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-zinc-500">
-                      {new Date(log.created_at).toLocaleString()}
-                    </td>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-zinc-800">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider whitespace-nowrap">
+                      Time
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider whitespace-nowrap">
+                      Event Type
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider whitespace-nowrap">
+                      Action
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider whitespace-nowrap">
+                      Result
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider whitespace-nowrap">
+                      Error
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider whitespace-nowrap">
+                      User ID
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider whitespace-nowrap">
+                      Membership ID
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-zinc-700/50">
+                  {auditLogs.map((log) => (
+                    <tr key={log.id} className="hover:bg-zinc-800/30">
+                      <td className="px-4 py-3 text-sm text-zinc-500 whitespace-nowrap">
+                        {new Date(log.created_at).toLocaleString()}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-zinc-300 whitespace-nowrap">
+                        {log.event_type}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-zinc-300 whitespace-nowrap">
+                        {log.action}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                          log.result === 'success' 
+                            ? 'bg-emerald-500/20 text-emerald-400'
+                            : log.result === 'skipped'
+                            ? 'bg-amber-500/20 text-amber-400'
+                            : 'bg-red-500/20 text-red-400'
+                        }`}>
+                          {log.result}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-zinc-500 max-w-[200px]" title={log.error || undefined}>
+                        {truncateError(log.error)}
+                      </td>
+                      <td className="px-4 py-3 text-sm font-mono text-zinc-400 whitespace-nowrap">
+                        {log.user_id}
+                      </td>
+                      <td className="px-4 py-3 text-sm font-mono text-zinc-400 whitespace-nowrap">
+                        {log.membership_id || '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           ) : (
-            <div className="text-center py-8">
-              <p className="text-zinc-400">No activity recorded yet</p>
+            <div className="text-center py-12">
+              <div className="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center mx-auto mb-4">
+                <svg className="w-6 h-6 text-zinc-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </div>
+              <p className="text-zinc-400 font-medium">No activity recorded yet</p>
               <p className="text-sm text-zinc-500 mt-1">
                 Events will appear here once webhooks start processing
               </p>
