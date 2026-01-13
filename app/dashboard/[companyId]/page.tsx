@@ -163,6 +163,12 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
         </div>
       </section>
 
+{/* 
+  Milestone 6.5 MVP: Audit Log Viewer
+  Read-only last 50 logs for the company. No filters, no pagination, no charts.
+*/}
+
+
       {/* Audit Logs */}
       <section className="bg-zinc-900 rounded-xl border border-zinc-800 p-6">
         <div className="flex items-center gap-3 mb-4">
