@@ -1,6 +1,6 @@
 import { getSupabase, isSupabaseConfigured } from '@/lib/supabase/client';
 import { ConfigForm } from '@/components/dashboard/config-form';
-import { getAuditLogs } from '@/app/actions/config';
+import { getAuditLogs } from '@/app/actions/audit-logs';
 
 interface DashboardPageProps {
   params: Promise<{ companyId: string }>;
