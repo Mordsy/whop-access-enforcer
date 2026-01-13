@@ -55,6 +55,7 @@ export interface ProductRoleMappingUpdate {
 // ============================================================================
 
 export type AuditAction = 
+  | 'webhook_received'
   | 'revoke_role'
   | 'skip_no_discord_user'
   | 'skip_membership_active'

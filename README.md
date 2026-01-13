@@ -34,3 +34,48 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## Webhook Testing
+
+### Local Testing with curl
+
+To test the webhook endpoint locally, ensure your dev server is running and you have `SUPABASE_SERVICE_ROLE_KEY` set in your `.env.local`:
+
+```bash
+# Test with a sample membership.went_invalid event
+curl -X POST http://localhost:3000/api/whop/webhook \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "evt_test_123",
+    "type": "membership.went_invalid",
+    "data": {
+      "id": "mem_abc123",
+      "company_id": "biz_test001",
+      "user_id": "user_xyz789",
+      "product_id": "prod_def456",
+      "status": "canceled"
+    }
+  }'
+```
+
+Expected response:
+```json
+{"received":true,"webhook_id":"evt_test_123","event_type":"membership.went_invalid"}
+```
+
+### Verifying in Dashboard
+
+After sending a test webhook, the event should appear in the Audit Log section of the dashboard at `/dashboard/biz_test001`.
+
+### Idempotency Test
+
+Sending the same webhook twice should return:
+```json
+{"received":true,"duplicate":true,"webhook_id":"evt_test_123"}
+```
+
+### Required Environment Variables
+
+For webhook processing:
+- `NEXT_PUBLIC_SUPABASE_URL` - Your Supabase project URL
+- `SUPABASE_SERVICE_ROLE_KEY` - Service role key (server-only, never expose to client)
