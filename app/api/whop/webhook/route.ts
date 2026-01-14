@@ -2,12 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createHash } from 'crypto';
 import { getSupabaseAdmin, isAdminClientConfigured } from '@/lib/supabase/admin';
 import type { AuditLogInsert } from '@/lib/supabase/types';
+import { whop } from '@/lib/whop/client';
 
 /**
  * Whop Webhook Handler
  * 
  * Receives webhooks from Whop and logs them to audit_logs table.
- * This is Milestone 7.1: ingestion + audit logging only.
+ * Milestone 7.2: Added signature verification before processing.
  * No Discord API calls or role revocation logic.
  */
 
@@ -54,17 +55,24 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Parse request body
+  // Read raw body and headers for signature verification
   let rawBody: string;
   let payload: unknown;
 
   try {
     rawBody = await request.text();
-    payload = JSON.parse(rawBody);
   } catch (err) {
-    console.error('[Webhook] Failed to parse JSON body:', err);
-    // Still respond 200 to avoid Whop retries for malformed payloads
-    return NextResponse.json({ received: true, error: 'Invalid JSON' }, { status: 200 });
+    console.error('[Webhook] Failed to read request body:', err);
+    return new Response('Invalid request body', { status: 400 });
+  }
+
+  // Verify webhook signature using Whop SDK
+  try {
+    const headers = Object.fromEntries(request.headers);
+    payload = whop.webhooks.unwrap(rawBody, { headers });
+  } catch (err) {
+    console.error('[Webhook] Signature verification failed:', err);
+    return new Response('Invalid webhook signature', { status: 401 });
   }
 
   // Extract webhook ID (Whop uses different field names in different event types)

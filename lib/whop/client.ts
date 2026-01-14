@@ -6,10 +6,12 @@ import { Whop } from '@whop/sdk';
  * Requires:
  * - WHOP_API_KEY: Your app's API key from the Whop developer dashboard
  * - WHOP_APP_ID: Your app's ID (required for verifying user tokens)
+ * - WHOP_WEBHOOK_SECRET: Your app's webhook secret (required for webhook signature verification)
  */
 
 const apiKey = process.env.WHOP_API_KEY;
 const appId = process.env.WHOP_APP_ID;
+const webhookSecret = process.env.WHOP_WEBHOOK_SECRET;
 
 if (!apiKey) {
   throw new Error('Missing WHOP_API_KEY environment variable');
@@ -19,6 +21,10 @@ if (!appId) {
   throw new Error('Missing WHOP_APP_ID environment variable');
 }
 
+if (!webhookSecret) {
+  throw new Error('Missing WHOP_WEBHOOK_SECRET environment variable');
+}
+
 /**
  * Whop SDK client instance
  * Use this for all Whop API operations
@@ -26,6 +32,7 @@ if (!appId) {
 export const whop = new Whop({
   apiKey,
   appID: appId,
+  webhookKey: btoa(webhookSecret),
 });
 
 /**
